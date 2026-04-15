@@ -4,7 +4,11 @@
 const RELAYS = [
     'wss://relay.damus.io',
     'wss://nos.lol',
-    'wss://relay.nostr.band'
+    'wss://relay.nostr.band',
+    'wss://relay.snort.social',
+    'wss://purplepag.es',
+    'wss://offchain.pub',
+    'wss://eden.nostr.land'
 ];
 
 class BrickChat {
@@ -14,8 +18,11 @@ class BrickChat {
         this.privkey = null;
         this.relays = RELAYS;
         this.initialized = false;
+        this.connectedRelays = new Set();
         
         this.elements = {
+            sidebar: document.getElementById('sidebar'),
+            btnMenuToggle: document.getElementById('btn-menu-toggle'),
             btnLogin: document.getElementById('btn-login'),
             modalContainer: document.getElementById('modal-container'),
             inputKey: document.getElementById('input-key'),
@@ -48,14 +55,33 @@ class BrickChat {
         }
 
         this.setupEventListeners();
-        this.checkExistingSession();
         
         if (window.NostrTools) {
             this.initialized = true;
+            this.checkExistingSession();
+            
+            // Auto connect as Guest if no session
+            if (!this.pubkey) {
+                console.log('BrickChat: Connecting as Guest');
+                this.connectToRelays();
+            }
         }
     }
 
     setupEventListeners() {
+        this.elements.btnMenuToggle.onclick = () => {
+            this.elements.sidebar.classList.toggle('active');
+        };
+
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', (e) => {
+            if (window.innerWidth <= 768) {
+                if (!this.elements.sidebar.contains(e.target) && e.target !== this.elements.btnMenuToggle) {
+                    this.elements.sidebar.classList.remove('active');
+                }
+            }
+        });
+
         this.elements.btnLogin.onclick = () => this.showModal(true);
         this.elements.btnCancelLogin.onclick = () => this.showModal(false);
         this.elements.btnConfirmLogin.onclick = () => this.handleLogin();
@@ -97,12 +123,7 @@ class BrickChat {
     async handleLogin() {
         const key = this.elements.inputKey.value.trim();
         if (!key) {
-            Swal.fire({
-                icon: 'warning',
-                title: 'Missing Key',
-                text: 'Please enter your Secret Key to proceed.',
-                confirmButtonColor: '#c0392b'
-            });
+            Swal.fire({ icon: 'warning', title: 'Missing Key', text: 'Enter nsec or hex key.', confirmButtonColor: '#c0392b' });
             return;
         }
 
@@ -115,64 +136,33 @@ class BrickChat {
             }
 
             const pubkey = window.NostrTools.getPublicKey(window.NostrTools.hexToBytes(hexKey));
-            
             this.pubkey = pubkey;
             this.privkey = hexKey;
             
-            localStorage.setItem('brick_user', JSON.stringify({
-                pubkey: this.pubkey,
-                privkey: this.privkey
-            }));
-
+            localStorage.setItem('brick_user', JSON.stringify({ pubkey: this.pubkey, privkey: this.privkey }));
             this.showModal(false);
             this.onAuthenticated();
             
-            Swal.fire({
-                icon: 'success',
-                title: 'Welcome Back!',
-                timer: 1500,
-                showConfirmButton: false
-            });
+            Swal.fire({ icon: 'success', title: 'Welcome!', timer: 1500, showConfirmButton: false });
         } catch (e) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Invalid Key',
-                text: 'The format of the key is incorrect. Check nsec or hex code.',
-                confirmButtonColor: '#c0392b'
-            });
+            Swal.fire({ icon: 'error', title: 'Auth Failed', text: 'Invalid key format.', confirmButtonColor: '#c0392b' });
         }
     }
 
     generateNewIdentity() {
         const privkey = window.NostrTools.generateSecretKey();
         const nsec = window.NostrTools.nip19.nsecEncode(privkey);
-        
         this.elements.displayNsec.innerText = nsec;
         this.elements.genResultArea.classList.remove('hidden');
-        
-        Swal.fire({
-            icon: 'info',
-            title: 'New Identity Created',
-            text: 'Please backup your key immediately using the Copy or Download buttons.',
-            confirmButtonColor: '#c0392b'
-        });
+        Swal.fire({ icon: 'info', title: 'Identity Created', text: 'Backup your key now!', confirmButtonColor: '#c0392b' });
     }
 
     async copyToClipboard() {
         const text = this.elements.displayNsec.innerText;
         try {
             await navigator.clipboard.writeText(text);
-            Swal.fire({
-                icon: 'success',
-                title: 'Copied!',
-                toast: true,
-                position: 'top-end',
-                timer: 2000,
-                showConfirmButton: false
-            });
-        } catch (e) {
-            console.error('Copy failed', e);
-        }
+            Swal.fire({ icon: 'success', title: 'Copied!', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
+        } catch (e) { console.error(e); }
     }
 
     downloadKeyFile() {
@@ -180,19 +170,9 @@ class BrickChat {
         const blob = new Blob([text], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
-        a.href = url;
-        a.download = 'brick_secret_key.txt';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        
-        Swal.fire({
-            icon: 'success',
-            title: 'Downloaded!',
-            text: 'Your key has been saved as brick_secret_key.txt',
-            confirmButtonColor: '#c0392b'
-        });
+        a.href = url; a.download = 'brick_secret_key.txt';
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(url);
     }
 
     async onAuthenticated() {
@@ -200,7 +180,6 @@ class BrickChat {
         this.elements.messageInput.disabled = false;
         this.elements.btnSend.disabled = false;
         this.elements.userName.innerText = this.pubkey.substring(0, 8) + '...';
-        
         this.connectToRelays();
     }
 
@@ -209,33 +188,47 @@ class BrickChat {
         this.elements.status.className = 'status-offline';
 
         const { SimplePool } = window.NostrTools;
-        this.pool = new SimplePool();
+        if (!this.pool) this.pool = new SimplePool();
+
+        // Track per-relay connection
+        this.relays.forEach(url => {
+            const relay = this.pool.ensureRelay(url);
+            relay.then(r => {
+                this.connectedRelays.add(url);
+                this.updateConnectionStatus();
+            }).catch(e => console.warn(`Relay ${url} failed`, e));
+        });
 
         this.subscribeToMessages();
-        
-        this.elements.status.innerText = 'Online';
-        this.elements.status.className = 'status-online';
+    }
+
+    updateConnectionStatus() {
+        const count = this.connectedRelays.size;
+        if (count > 0) {
+            this.elements.status.innerText = `Online (${count} Relays)`;
+            this.elements.status.className = 'status-online';
+        } else {
+            this.elements.status.innerText = 'Offline';
+            this.elements.status.className = 'status-offline';
+        }
     }
 
     subscribeToMessages() {
-        this.pool.subscribeMany(this.relays, [
-            {
-                kinds: [1],
-                limit: 50
-            }
-        ], {
+        this.pool.subscribeMany(this.relays, [{ kinds: [1], limit: 50 }], {
             onevent: (event) => this.renderMessage(event),
-            oneose: () => console.log('BrickChat: EOSE')
+            oneose: () => console.log('BrickChat: Feed Initialized')
         });
     }
 
     renderMessage(event) {
-        const isMe = event.pubkey === this.pubkey;
+        if (document.getElementById(`msg-${event.id}`)) return; // Avoid duplicates
+
+        const isMe = this.pubkey && event.pubkey === this.pubkey;
         const msgDiv = document.createElement('div');
+        msgDiv.id = `msg-${event.id}`;
         msgDiv.className = `message-brick ${isMe ? 'message-sent' : 'message-received'}`;
         
         const timestamp = new Date(event.created_at * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-        
         msgDiv.innerHTML = `
             <div class="message-meta">${event.pubkey.substring(0, 8)} • ${timestamp}</div>
             <div class="message-content">${this.escapeHtml(event.content)}</div>
@@ -263,7 +256,7 @@ class BrickChat {
         try {
             await Promise.any(this.pool.publish(this.relays, signedEvent));
         } catch (e) {
-            console.error('BrickChat: Publish failed', e);
+            Swal.fire({ icon: 'error', title: 'Send Failed', text: 'Could not reach any relay.', confirmButtonColor: '#c0392b' });
         }
     }
 
@@ -274,7 +267,4 @@ class BrickChat {
     }
 }
 
-// Start the app
-window.addEventListener('DOMContentLoaded', () => {
-    window.brickChat = new BrickChat();
-});
+window.addEventListener('DOMContentLoaded', () => { window.brickChat = new BrickChat(); });

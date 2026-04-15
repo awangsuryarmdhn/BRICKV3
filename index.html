@@ -17,7 +17,7 @@
 <body class="brick-bg">
     <div class="app-container">
         <!-- Sidebar -->
-        <aside class="sidebar brick-border">
+        <aside id="sidebar" class="sidebar brick-border">
             <div class="logo">
                 <span class="logo-text">BRICK</span><span class="logo-sub">CHAT</span>
             </div>
@@ -26,7 +26,7 @@
             
             <div id="user-info" class="user-info">
                 <div id="connection-status" class="status-offline">Offline</div>
-                <div id="user-name" class="user-display">Not Connected</div>
+                <div id="user-name" class="user-display">Guest / Not Connected</div>
             </div>
             
             <nav class="channels">
@@ -38,6 +38,7 @@
         <!-- Main Content -->
         <main class="main-content brick-border">
             <header class="main-header">
+                <button id="btn-menu-toggle" class="menu-toggle brick-btn sm">☰</button>
                 <h2>#global</h2>
             </header>
 

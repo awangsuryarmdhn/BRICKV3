@@ -289,9 +289,51 @@ textarea:focus {
     gap: 10px;
 }
 
-.brick-btn.sm {
-    padding: 5px 12px;
-    font-size: 0.8rem;
+/* Mobile Responsiveness */
+.menu-toggle {
+    display: none;
+    margin-right: 15px;
 }
 
+@media (max-width: 768px) {
+    .app-container {
+        flex-direction: column;
+        height: 100vh;
+        overflow: hidden;
+    }
+
+    .sidebar {
+        position: fixed;
+        left: -100%;
+        top: 0;
+        bottom: 0;
+        width: 250px;
+        z-index: 1000;
+        transition: left 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    .sidebar.active {
+        left: 0;
+    }
+
+    .main-content {
+        width: 100%;
+        border-left: none;
+    }
+
+    .menu-toggle {
+        display: block;
+    }
+
+    .input-area textarea {
+        font-size: 16px; /* Prevent zoom on iOS */
+    }
+
+    .modal {
+        width: 95%;
+        padding: 20px;
+    }
+}
+
+/* Auth section hidden handled in app.js */
 .auth-section.hidden, .gen-result.hidden { display: none; }
