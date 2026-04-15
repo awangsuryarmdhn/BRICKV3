@@ -19,15 +19,15 @@ class BrickChat {
             btnLogin: document.getElementById('btn-login'),
             modalContainer: document.getElementById('modal-container'),
             inputKey: document.getElementById('input-key'),
-            inputEmail: document.getElementById('input-email'),
-            inputPassword: document.getElementById('input-password'),
-            tabKey: document.getElementById('tab-key'),
-            tabEmail: document.getElementById('tab-email'),
-            sectionKey: document.getElementById('section-key'),
-            sectionEmail: document.getElementById('section-email'),
             btnConfirmLogin: document.getElementById('btn-confirm-login'),
             btnCancelLogin: document.getElementById('btn-cancel-login'),
             linkGenerate: document.getElementById('link-generate'),
+            
+            genResultArea: document.getElementById('gen-result-area'),
+            displayNsec: document.getElementById('display-nsec'),
+            btnCopyKey: document.getElementById('btn-copy-key'),
+            btnDownloadKey: document.getElementById('btn-download-key'),
+
             messagesContainer: document.getElementById('messages-container'),
             messageInput: document.getElementById('message-input'),
             btnSend: document.getElementById('btn-send'),
@@ -35,30 +35,23 @@ class BrickChat {
             userName: document.getElementById('user-name')
         };
 
-        this.authMode = 'key'; // 'key' or 'email'
         this.init();
     }
 
     async init() {
-        // Register Service Worker for PWA
         if ('serviceWorker' in navigator) {
             try {
-                const reg = await navigator.serviceWorker.register('./sw.js');
-                console.log('BrickChat: Service Worker registered', reg);
+                await navigator.serviceWorker.register('./sw.js');
             } catch (e) {
-                console.warn('BrickChat: Service Worker registration failed', e);
+                console.warn('BrickChat: SW failed', e);
             }
         }
 
         this.setupEventListeners();
         this.checkExistingSession();
         
-        // Load NostrTools from window
         if (window.NostrTools) {
             this.initialized = true;
-            console.log('BrickChat: NostrTools loaded');
-        } else {
-            console.error('BrickChat: NostrTools failed to load');
         }
     }
 
@@ -67,13 +60,14 @@ class BrickChat {
         this.elements.btnCancelLogin.onclick = () => this.showModal(false);
         this.elements.btnConfirmLogin.onclick = () => this.handleLogin();
         
-        this.elements.tabKey.onclick = () => this.switchAuthMode('key');
-        this.elements.tabEmail.onclick = () => this.switchAuthMode('email');
-
         this.elements.linkGenerate.onclick = (e) => {
             e.preventDefault();
             this.generateNewIdentity();
         };
+
+        this.elements.btnCopyKey.onclick = () => this.copyToClipboard();
+        this.elements.btnDownloadKey.onclick = () => this.downloadKeyFile();
+
         this.elements.btnSend.onclick = () => this.sendMessage();
         this.elements.messageInput.onkeypress = (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -83,16 +77,11 @@ class BrickChat {
         };
     }
 
-    switchAuthMode(mode) {
-        this.authMode = mode;
-        this.elements.tabKey.classList.toggle('active', mode === 'key');
-        this.elements.tabEmail.classList.toggle('active', mode === 'email');
-        this.elements.sectionKey.classList.toggle('hidden', mode !== 'key');
-        this.elements.sectionEmail.classList.toggle('hidden', mode !== 'email');
-    }
-
     showModal(show) {
         this.elements.modalContainer.classList.toggle('hidden', !show);
+        if (show) {
+            this.elements.genResultArea.classList.add('hidden');
+        }
     }
 
     checkExistingSession() {
@@ -106,40 +95,22 @@ class BrickChat {
     }
 
     async handleLogin() {
-        if (this.authMode === 'key') {
-            await this.handleKeyLogin();
-        } else {
-            await this.handleEmailLogin();
-        }
-    }
-
-    async handleKeyLogin() {
         const key = this.elements.inputKey.value.trim();
-        if (!key) return;
-        this.authenticate(key);
-    }
+        if (!key) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Missing Key',
+                text: 'Please enter your Secret Key to proceed.',
+                confirmButtonColor: '#c0392b'
+            });
+            return;
+        }
 
-    async handleEmailLogin() {
-        const email = this.elements.inputEmail.value.trim();
-        const password = this.elements.inputPassword.value.trim();
-        if (!email || !password) return;
-
-        // Simple Brainwallet derivation: sha256(email + password)
-        const encoder = new TextEncoder();
-        const data = encoder.encode(email + password);
-        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hexKey = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-
-        this.authenticate(hexKey);
-    }
-
-    async authenticate(hexOrNsec) {
         try {
-            let hexKey = hexOrNsec;
-            if (hexOrNsec.startsWith('nsec')) {
+            let hexKey = key;
+            if (key.startsWith('nsec')) {
                 const { decode } = window.NostrTools.nip19;
-                const { data } = decode(hexOrNsec);
+                const { data } = decode(key);
                 hexKey = window.NostrTools.bytesToHex(data);
             }
 
@@ -155,16 +126,73 @@ class BrickChat {
 
             this.showModal(false);
             this.onAuthenticated();
+            
+            Swal.fire({
+                icon: 'success',
+                title: 'Welcome Back!',
+                timer: 1500,
+                showConfirmButton: false
+            });
         } catch (e) {
-            alert('Authentication Failed: ' + e.message);
+            Swal.fire({
+                icon: 'error',
+                title: 'Invalid Key',
+                text: 'The format of the key is incorrect. Check nsec or hex code.',
+                confirmButtonColor: '#c0392b'
+            });
         }
     }
 
     generateNewIdentity() {
         const privkey = window.NostrTools.generateSecretKey();
         const nsec = window.NostrTools.nip19.nsecEncode(privkey);
-        this.elements.inputKey.value = nsec;
-        alert('New Identity Generated! PLEASE BACKUP YOUR KEY:\n\n' + nsec);
+        
+        this.elements.displayNsec.innerText = nsec;
+        this.elements.genResultArea.classList.remove('hidden');
+        
+        Swal.fire({
+            icon: 'info',
+            title: 'New Identity Created',
+            text: 'Please backup your key immediately using the Copy or Download buttons.',
+            confirmButtonColor: '#c0392b'
+        });
+    }
+
+    async copyToClipboard() {
+        const text = this.elements.displayNsec.innerText;
+        try {
+            await navigator.clipboard.writeText(text);
+            Swal.fire({
+                icon: 'success',
+                title: 'Copied!',
+                toast: true,
+                position: 'top-end',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        } catch (e) {
+            console.error('Copy failed', e);
+        }
+    }
+
+    downloadKeyFile() {
+        const text = this.elements.displayNsec.innerText;
+        const blob = new Blob([text], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'brick_secret_key.txt';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        Swal.fire({
+            icon: 'success',
+            title: 'Downloaded!',
+            text: 'Your key has been saved as brick_secret_key.txt',
+            confirmButtonColor: '#c0392b'
+        });
     }
 
     async onAuthenticated() {
@@ -190,14 +218,14 @@ class BrickChat {
     }
 
     subscribeToMessages() {
-        const sub = this.pool.subscribeMany(this.relays, [
+        this.pool.subscribeMany(this.relays, [
             {
                 kinds: [1],
                 limit: 50
             }
         ], {
             onevent: (event) => this.renderMessage(event),
-            oneose: () => console.log('BrickChat: EOSE reached')
+            oneose: () => console.log('BrickChat: EOSE')
         });
     }
 
@@ -230,14 +258,12 @@ class BrickChat {
         };
 
         const signedEvent = window.NostrTools.finalizeEvent(event, window.NostrTools.hexToBytes(this.privkey));
-        
         this.elements.messageInput.value = '';
         
         try {
             await Promise.any(this.pool.publish(this.relays, signedEvent));
-            console.log('BrickChat: Message published');
         } catch (e) {
-            console.error('BrickChat: Failed to publish', e);
+            console.error('BrickChat: Publish failed', e);
         }
     }
 

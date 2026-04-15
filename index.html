@@ -4,87 +4,77 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BRICKCHAT | Solid Messaging</title>
+    <!-- External Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://unpkg.com/nostr-tools/lib/nostr.bundle.js"></script>
+    
     <link rel="stylesheet" href="css/styles.css">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#c0392b">
     <link rel="icon" href="assets/icon.png">
     <link rel="apple-touch-icon" href="assets/icon-192.png">
 </head>
-<body class="brick-theme">
-    <div id="app" class="app-container">
-        <!-- Sidebar / Navigation -->
+<body class="brick-bg">
+    <div class="app-container">
+        <!-- Sidebar -->
         <aside class="sidebar brick-border">
-            <header class="sidebar-header">
-                <h1>BRICK</h1>
-            </header>
-            <nav class="sidebar-nav">
-                <button id="nav-chat" class="nav-item active">Messages</button>
-                <button id="nav-contacts" class="nav-item">Contacts</button>
-                <button id="nav-settings" class="nav-item">Settings</button>
-            </nav>
-            <div class="user-profile brick-border-top">
-                <div id="user-avatar" class="avatar"></div>
-                <div id="user-info">
-                    <span id="user-name">Guest</span>
-                </div>
+            <div class="logo">
+                <span class="logo-text">BRICK</span><span class="logo-sub">CHAT</span>
             </div>
+            
+            <button id="btn-login" class="brick-btn primary">Join the Brick</button>
+            
+            <div id="user-info" class="user-info">
+                <div id="connection-status" class="status-offline">Offline</div>
+                <div id="user-name" class="user-display">Not Connected</div>
+            </div>
+            
+            <nav class="channels">
+                <div class="nav-label">Public Feed</div>
+                <div class="channel-item active">#global</div>
+            </nav>
         </aside>
 
-        <!-- Main Chat Area -->
-        <main class="chat-area">
-            <header class="chat-header brick-border-bottom">
-                <div class="chat-title">
-                    <h2 id="active-chat-name">Global Feed</h2>
-                    <span id="connection-status" class="status-offline">Offline</span>
-                </div>
+        <!-- Main Content -->
+        <main class="main-content brick-border">
+            <header class="main-header">
+                <h2>#global</h2>
             </header>
 
-            <div id="messages-container" class="messages-list">
-                <!-- Messages will be injected here -->
-                <div class="welcome-card brick-border">
-                    <h3>Welcome to BrickChat</h3>
-                    <p>Secure, modular, and forever yours.</p>
-                    <button id="btn-login" class="brick-btn primary">Start Using Brick</button>
-                </div>
+            <div id="messages-container" class="messages-container">
+                <!-- Messages will appear here -->
             </div>
 
-            <footer class="chat-footer brick-border-top">
-                <div class="input-wrapper">
-                    <textarea id="message-input" placeholder="Type a message..." disabled></textarea>
-                    <button id="btn-send" class="brick-btn" disabled>Send</button>
-                </div>
+            <footer class="input-area">
+                <textarea id="message-input" placeholder="Brick your message here..." disabled></textarea>
+                <button id="btn-send" class="brick-btn" disabled>SEND</button>
             </footer>
         </main>
 
         <!-- Modals -->
         <div id="modal-container" class="modal-overlay hidden">
             <div id="login-modal" class="modal brick-border">
-                <h2>Join BrickChat</h2>
+                <h2>Access the Brick</h2>
                 
-                <div class="tabs">
-                    <button id="tab-key" class="tab-btn active">Secret Key</button>
-                    <button id="tab-email" class="tab-btn">Email & Pass</button>
-                </div>
-
-                <div id="section-key" class="auth-section">
+                <div class="auth-section">
                     <div class="form-group">
-                        <label>Private Key (nsec or hex)</label>
+                        <label>Secret Key (nsec or hex)</label>
                         <input type="password" id="input-key" placeholder="Paste your key here">
-                        <p class="hint">Don't have one? <a href="#" id="link-generate">Generate new identity</a></p>
                     </div>
                 </div>
 
-                <div id="section-email" class="auth-section hidden">
-                    <div class="form-group">
-                        <label>Email / NIP-05</label>
-                        <input type="email" id="input-email" placeholder="user@domain.com">
+                <div id="gen-result-area" class="gen-result hidden">
+                    <label>Your New Key (Save it!)</label>
+                    <div class="key-display-box">
+                        <code id="display-nsec"></code>
                     </div>
-                    <div class="form-group">
-                        <label>Password</label>
-                        <input type="password" id="input-password" placeholder="Strong password">
-                        <p class="hint">Your key is derived from these two values.</p>
+                    <div class="key-actions">
+                        <button id="btn-copy-key" class="brick-btn sm">COPY</button>
+                        <button id="btn-download-key" class="brick-btn sm">DOWNLOAD</button>
                     </div>
                 </div>
+
+                <p class="hint">No key? <a href="#" id="link-generate">Generate Identity</a></p>
 
                 <div class="modal-actions">
                     <button id="btn-cancel-login" class="brick-btn">Cancel</button>
@@ -94,8 +84,6 @@
         </div>
     </div>
 
-    <!-- Nostr Library -->
-    <script src="https://unpkg.com/nostr-tools/lib/nostr.bundle.js"></script>
     <script src="js/app.js" type="module"></script>
 </body>
 </html>

@@ -259,26 +259,39 @@ textarea:focus {
 .hint { font-size: 0.8rem; margin-top: 5px; color: #666; }
 .hint a { color: var(--brick-red); text-decoration: none; font-weight: bold; }
 
-/* Tabs */
-.tabs {
-    display: flex;
-    gap: 10px;
-    margin-bottom: 20px;
+/* Generation Result Area */
+.gen-result {
+    margin: 20px 0;
+    padding: 15px;
+    background: var(--concrete);
+    border: var(--border-width) solid var(--charcoal);
 }
 
-.tab-btn {
-    flex: 1;
+.gen-result label {
+    font-size: 0.8rem;
+    color: var(--brick-red);
+    margin-bottom: 10px;
+    display: block;
+}
+
+.key-display-box {
+    background: white;
     padding: 10px;
     border: var(--border-width) solid var(--charcoal);
-    background-color: var(--concrete);
-    font-weight: bold;
-    cursor: pointer;
+    margin-bottom: 10px;
+    word-break: break-all;
+    font-family: monospace;
+    font-size: 0.9rem;
 }
 
-.tab-btn.active {
-    background-color: white;
-    box-shadow: 2px 2px 0px var(--charcoal);
+.key-actions {
+    display: flex;
+    gap: 10px;
 }
 
-.auth-section.hidden { display: none; }
-.auth-section { margin-top: 10px; }
+.brick-btn.sm {
+    padding: 5px 12px;
+    font-size: 0.8rem;
+}
+
+.auth-section.hidden, .gen-result.hidden { display: none; }
