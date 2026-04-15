@@ -1,89 +1,138 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>BRICKCHAT | Solid Messaging</title>
-    <!-- External Libraries -->
+    <title>BRICKCHAT | Pro Nostr Messaging</title>
+    
+    <!-- CDNs -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.19/dist/full.min.css" rel="stylesheet" type="text/css" />
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script src="https://unpkg.com/nostr-tools/lib/nostr.bundle.js"></script>
+
+    <!-- Tailwind Config -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brick: {
+                            red: '#c0392b',
+                            charcoal: '#2c3e50',
+                            concrete: '#ecf0f1',
+                            dark: '#1a1a1a'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
     
     <link rel="stylesheet" href="css/styles.css">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#c0392b">
     <link rel="icon" href="assets/icon.png">
-    <link rel="apple-touch-icon" href="assets/icon-192.png">
 </head>
-<body class="brick-bg">
-    <div class="app-container">
-        <!-- Sidebar -->
-        <aside id="sidebar" class="sidebar brick-border">
-            <div class="logo">
-                <span class="logo-text">BRICK</span><span class="logo-sub">CHAT</span>
-            </div>
-            
-            <button id="btn-login" class="brick-btn primary">Join the Brick</button>
-            
-            <div id="user-info" class="user-info">
-                <div id="connection-status" class="status-offline">Offline</div>
-                <div id="user-name" class="user-display">Guest / Not Connected</div>
-            </div>
-            
-            <nav class="channels">
-                <div class="nav-label">Public Feed</div>
-                <div class="channel-item active">#global</div>
-            </nav>
-        </aside>
-
+<body class="bg-brick-dark text-brick-concrete min-h-screen">
+    <div class="drawer lg:drawer-open">
+        <input id="sidebar-drawer" type="checkbox" class="drawer-toggle" />
+        
         <!-- Main Content -->
-        <main class="main-content brick-border">
-            <header class="main-header">
-                <button id="btn-menu-toggle" class="menu-toggle brick-btn sm">☰</button>
-                <h2>#global</h2>
-            </header>
+        <div class="drawer-content flex flex-col h-screen overflow-hidden">
+            <!-- Navbar (Mobile only) -->
+            <div class="navbar bg-brick-charcoal lg:hidden border-b-2 border-brick-red">
+                <div class="flex-none">
+                    <label for="sidebar-drawer" class="btn btn-square btn-ghost drawer-button">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="inline-block w-5 h-5 stroke-current"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                    </label>
+                </div>
+                <div class="flex-1">
+                    <a class="text-xl font-bold tracking-tighter">BRICK<span class="text-brick-red">CHAT</span></a>
+                </div>
+            </div>
 
-            <div id="messages-container" class="messages-container">
+            <!-- Chat Area -->
+            <div id="messages-container" class="flex-1 overflow-y-auto p-4 space-y-4">
                 <!-- Messages will appear here -->
             </div>
 
-            <footer class="input-area">
-                <textarea id="message-input" placeholder="Brick your message here..." disabled></textarea>
-                <button id="btn-send" class="brick-btn" disabled>SEND</button>
-            </footer>
-        </main>
+            <!-- Input Area -->
+            <div class="p-4 bg-brick-charcoal border-t-2 border-brick-red">
+                <div class="flex gap-2 max-w-4xl mx-auto">
+                    <textarea id="message-input" class="textarea textarea-bordered flex-1 bg-brick-dark border-brick-red" placeholder="Brick your message here..." disabled></textarea>
+                    <button id="btn-send" class="btn bg-brick-red border-none text-white hover:bg-red-700" disabled>SEND</button>
+                </div>
+            </div>
+        </div> 
 
-        <!-- Modals -->
-        <div id="modal-container" class="modal-overlay hidden">
-            <div id="login-modal" class="modal brick-border">
-                <h2>Access the Brick</h2>
-                
-                <div class="auth-section">
-                    <div class="form-group">
-                        <label>Secret Key (nsec or hex)</label>
-                        <input type="password" id="input-key" placeholder="Paste your key here">
-                    </div>
+        <!-- Sidebar -->
+        <div class="drawer-side z-50">
+            <label for="sidebar-drawer" aria-label="close sidebar" class="drawer-overlay"></label>
+            <div class="menu p-4 w-80 min-h-full bg-brick-charcoal text-base-content border-r-2 border-brick-red">
+                <div class="mb-8 hidden lg:block">
+                    <h1 class="text-3xl font-black tracking-tighter text-brick-concrete italic">
+                        BRICK<span class="text-brick-red">CHAT</span>
+                    </h1>
+                    <div class="text-[10px] uppercase font-bold text-brick-red">Solid Nostr Platform</div>
                 </div>
 
-                <div id="gen-result-area" class="gen-result hidden">
-                    <label>Your New Key (Save it!)</label>
-                    <div class="key-display-box">
-                        <code id="display-nsec"></code>
+                <!-- Account Section -->
+                <div class="card bg-brick-dark border-2 border-brick-red mb-6 p-4">
+                    <div class="flex items-center gap-3">
+                        <div class="avatar placeholder">
+                            <div class="bg-brick-red text-white rounded-full w-10">
+                                <span id="avatar-initial">?</span>
+                            </div>
+                        </div>
+                        <div class="overflow-hidden">
+                            <div id="user-name" class="font-bold text-sm truncate">Not Connected</div>
+                            <div id="connection-status" class="text-xs text-error font-bold italic">Offline</div>
+                        </div>
                     </div>
-                    <div class="key-actions">
-                        <button id="btn-copy-key" class="brick-btn sm">COPY</button>
-                        <button id="btn-download-key" class="brick-btn sm">DOWNLOAD</button>
-                    </div>
+                    <button id="btn-login" class="btn btn-sm btn-block bg-brick-red border-none text-white mt-4">JOIN THE BRICK</button>
                 </div>
 
-                <p class="hint">No key? <a href="#" id="link-generate">Generate Identity</a></p>
-
-                <div class="modal-actions">
-                    <button id="btn-cancel-login" class="brick-btn">Cancel</button>
-                    <button id="btn-confirm-login" class="brick-btn primary">Connect</button>
-                </div>
+                <ul class="space-y-2">
+                    <li class="menu-title text-brick-red font-bold">Public Feed</li>
+                    <li><a class="active bg-brick-red text-white">#global</a></li>
+                    <li><a>#indonesia</a></li>
+                </ul>
             </div>
         </div>
     </div>
+
+    <!-- Modals -->
+    <dialog id="login-modal" class="modal">
+        <div class="modal-box bg-brick-charcoal border-4 border-brick-red rounded-none">
+            <h3 class="font-black text-2xl italic mb-4">ACCESS THE BRICK</h3>
+            
+            <div id="auth-form">
+                <div class="form-control mb-4">
+                    <label class="label"><span class="label-text text-brick-concrete">Secret Key (nsec / hex)</span></label>
+                    <input type="password" id="input-key" class="input input-bordered bg-brick-dark border-brick-red" placeholder="Paste your key here" />
+                </div>
+            </div>
+
+            <div id="gen-result-area" class="hidden bg-brick-dark p-4 border-2 border-brick-red mb-4">
+                <label class="text-xs font-bold text-brick-red mb-2 block uppercase">Save These Keys!</label>
+                <div class="bg-black p-2 mb-3">
+                    <code id="display-nsec" class="text-xs break-all text-green-400"></code>
+                </div>
+                <div class="flex gap-2">
+                    <button id="btn-copy-key" class="btn btn-xs btn-outline btn-success flex-1">COPY</button>
+                    <button id="btn-download-key" class="btn btn-xs btn-outline btn-info flex-1">DOWNLOAD</button>
+                </div>
+            </div>
+
+            <p class="text-xs mb-4">No identity? <a id="link-generate" class="text-brick-red font-bold cursor-pointer hover:underline">Generate new key</a></p>
+
+            <div class="modal-action">
+                <button id="btn-cancel-login" class="btn btn-ghost">Cancel</button>
+                <button id="btn-confirm-login" class="btn bg-brick-red text-white border-none">Connect</button>
+            </div>
+        </div>
+    </dialog>
 
     <script src="js/app.js" type="module"></script>
 </body>

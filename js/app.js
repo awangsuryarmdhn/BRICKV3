@@ -1,13 +1,11 @@
-// BRICKCHAT Core Logic
-// Using nostr-tools via CDN
+// BRICKCHAT Pro - Logic
+// Powered by Nostr-tools & DaisyUI
 
 const RELAYS = [
     'wss://relay.damus.io',
     'wss://nos.lol',
     'wss://relay.nostr.band',
     'wss://relay.snort.social',
-    'wss://purplepag.es',
-    'wss://offchain.pub',
     'wss://eden.nostr.land'
 ];
 
@@ -17,14 +15,11 @@ class BrickChat {
         this.pubkey = null;
         this.privkey = null;
         this.relays = RELAYS;
-        this.initialized = false;
         this.connectedRelays = new Set();
         
         this.elements = {
-            sidebar: document.getElementById('sidebar'),
-            btnMenuToggle: document.getElementById('btn-menu-toggle'),
             btnLogin: document.getElementById('btn-login'),
-            modalContainer: document.getElementById('modal-container'),
+            loginModal: document.getElementById('login-modal'),
             inputKey: document.getElementById('input-key'),
             btnConfirmLogin: document.getElementById('btn-confirm-login'),
             btnCancelLogin: document.getElementById('btn-cancel-login'),
@@ -39,51 +34,34 @@ class BrickChat {
             messageInput: document.getElementById('message-input'),
             btnSend: document.getElementById('btn-send'),
             status: document.getElementById('connection-status'),
-            userName: document.getElementById('user-name')
+            userName: document.getElementById('user-name'),
+            avatarInitial: document.getElementById('avatar-initial'),
+            drawerToggle: document.getElementById('sidebar-drawer')
         };
 
         this.init();
     }
 
     async init() {
-        if ('serviceWorker' in navigator) {
-            try {
-                await navigator.serviceWorker.register('./sw.js');
-            } catch (e) {
-                console.warn('BrickChat: SW failed', e);
-            }
-        }
-
         this.setupEventListeners();
         
+        // Wait for NostrTools
         if (window.NostrTools) {
-            this.initialized = true;
             this.checkExistingSession();
             
-            // Auto connect as Guest if no session
+            // Connect as guest if no session
             if (!this.pubkey) {
                 console.log('BrickChat: Connecting as Guest');
                 this.connectToRelays();
             }
+        } else {
+            Swal.fire('Error', 'Library NostrTools gagal dimuat.', 'error');
         }
     }
 
     setupEventListeners() {
-        this.elements.btnMenuToggle.onclick = () => {
-            this.elements.sidebar.classList.toggle('active');
-        };
-
-        // Close sidebar when clicking outside on mobile
-        document.addEventListener('click', (e) => {
-            if (window.innerWidth <= 768) {
-                if (!this.elements.sidebar.contains(e.target) && e.target !== this.elements.btnMenuToggle) {
-                    this.elements.sidebar.classList.remove('active');
-                }
-            }
-        });
-
-        this.elements.btnLogin.onclick = () => this.showModal(true);
-        this.elements.btnCancelLogin.onclick = () => this.showModal(false);
+        this.elements.btnLogin.onclick = () => this.elements.loginModal.showModal();
+        this.elements.btnCancelLogin.onclick = () => this.elements.loginModal.close();
         this.elements.btnConfirmLogin.onclick = () => this.handleLogin();
         
         this.elements.linkGenerate.onclick = (e) => {
@@ -103,65 +81,87 @@ class BrickChat {
         };
     }
 
-    showModal(show) {
-        this.elements.modalContainer.classList.toggle('hidden', !show);
-        if (show) {
-            this.elements.genResultArea.classList.add('hidden');
-        }
-    }
-
     checkExistingSession() {
         const stored = localStorage.getItem('brick_user');
         if (stored) {
-            const user = JSON.parse(stored);
-            this.pubkey = user.pubkey;
-            this.privkey = user.privkey;
-            this.onAuthenticated();
+            try {
+                const user = JSON.parse(stored);
+                this.pubkey = user.pubkey;
+                this.privkey = user.privkey;
+                this.onAuthenticated();
+            } catch (e) {
+                localStorage.removeItem('brick_user');
+            }
         }
     }
 
     async handleLogin() {
-        const key = this.elements.inputKey.value.trim();
-        if (!key) {
-            Swal.fire({ icon: 'warning', title: 'Missing Key', text: 'Enter nsec or hex key.', confirmButtonColor: '#c0392b' });
-            return;
-        }
+        const rawKey = this.elements.inputKey.value.trim();
+        if (!rawKey) return;
 
         try {
-            let hexKey = key;
-            if (key.startsWith('nsec')) {
-                const { decode } = window.NostrTools.nip19;
-                const { data } = decode(key);
-                hexKey = window.NostrTools.bytesToHex(data);
-            }
-
+            const hexKey = this.normalizeKey(rawKey);
             const pubkey = window.NostrTools.getPublicKey(window.NostrTools.hexToBytes(hexKey));
+            
             this.pubkey = pubkey;
             this.privkey = hexKey;
             
-            localStorage.setItem('brick_user', JSON.stringify({ pubkey: this.pubkey, privkey: this.privkey }));
-            this.showModal(false);
+            localStorage.setItem('brick_user', JSON.stringify({
+                pubkey: this.pubkey,
+                privkey: this.privkey
+            }));
+
+            this.elements.loginModal.close();
             this.onAuthenticated();
             
-            Swal.fire({ icon: 'success', title: 'Welcome!', timer: 1500, showConfirmButton: false });
+            Swal.fire({
+                icon: 'success',
+                title: 'Connected',
+                timer: 1500,
+                showConfirmButton: false
+            });
         } catch (e) {
-            Swal.fire({ icon: 'error', title: 'Auth Failed', text: 'Invalid key format.', confirmButtonColor: '#c0392b' });
+            console.error('Login Error:', e);
+            Swal.fire({
+                icon: 'error',
+                title: 'Invalid Key Format',
+                text: 'Pastikan kunci nsec atau hex Anda benar dan tidak terpotong.',
+                confirmButtonColor: '#c0392b'
+            });
         }
+    }
+
+    normalizeKey(key) {
+        key = key.trim();
+        
+        // Handle nsec
+        if (key.startsWith('nsec1')) {
+            const { decode } = window.NostrTools.nip19;
+            const { data } = decode(key);
+            return window.NostrTools.bytesToHex(data);
+        }
+        
+        // Handle Hex (validate length 64)
+        if (key.length === 64 && /^[0-9a-fA-F]+$/.test(key)) {
+            return key.toLowerCase();
+        }
+
+        throw new Error('Unrecognized key format');
     }
 
     generateNewIdentity() {
         const privkey = window.NostrTools.generateSecretKey();
         const nsec = window.NostrTools.nip19.nsecEncode(privkey);
+        
         this.elements.displayNsec.innerText = nsec;
         this.elements.genResultArea.classList.remove('hidden');
-        Swal.fire({ icon: 'info', title: 'Identity Created', text: 'Backup your key now!', confirmButtonColor: '#c0392b' });
     }
 
     async copyToClipboard() {
         const text = this.elements.displayNsec.innerText;
         try {
             await navigator.clipboard.writeText(text);
-            Swal.fire({ icon: 'success', title: 'Copied!', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
+            Swal.fire({ icon: 'success', title: 'Copied', toast: true, position: 'top-end', timer: 2000, showConfirmButton: false });
         } catch (e) { console.error(e); }
     }
 
@@ -172,66 +172,67 @@ class BrickChat {
         const a = document.createElement('a');
         a.href = url; a.download = 'brick_secret_key.txt';
         document.body.appendChild(a); a.click();
-        document.body.removeChild(a); URL.revokeObjectURL(url);
+        document.body.removeChild(a); 
     }
 
     async onAuthenticated() {
-        this.elements.btnLogin.style.display = 'none';
+        this.elements.btnLogin.classList.add('hidden');
         this.elements.messageInput.disabled = false;
         this.elements.btnSend.disabled = false;
-        this.elements.userName.innerText = this.pubkey.substring(0, 8) + '...';
+        
+        this.elements.userName.innerText = this.pubkey.substring(0, 12) + '...';
+        this.elements.avatarInitial.innerText = 'B';
+        
         this.connectToRelays();
     }
 
     async connectToRelays() {
+        if (!this.pool) this.pool = new window.NostrTools.SimplePool();
+
         this.elements.status.innerText = 'Connecting...';
-        this.elements.status.className = 'status-offline';
+        this.elements.status.className = 'text-xs italic font-bold text-orange-500';
 
-        const { SimplePool } = window.NostrTools;
-        if (!this.pool) this.pool = new SimplePool();
-
-        // Track per-relay connection
         this.relays.forEach(url => {
-            const relay = this.pool.ensureRelay(url);
-            relay.then(r => {
+            this.pool.ensureRelay(url).then(() => {
                 this.connectedRelays.add(url);
-                this.updateConnectionStatus();
-            }).catch(e => console.warn(`Relay ${url} failed`, e));
+                this.updateUIStatus();
+            }).catch(e => console.warn(`Relay ${url} failed`));
         });
 
         this.subscribeToMessages();
     }
 
-    updateConnectionStatus() {
+    updateUIStatus() {
         const count = this.connectedRelays.size;
-        if (count > 0) {
-            this.elements.status.innerText = `Online (${count} Relays)`;
-            this.elements.status.className = 'status-online';
-        } else {
-            this.elements.status.innerText = 'Offline';
-            this.elements.status.className = 'status-offline';
-        }
+        this.elements.status.innerText = `Online (${count} Relays)`;
+        this.elements.status.className = 'text-xs italic font-bold text-success';
     }
 
     subscribeToMessages() {
         this.pool.subscribeMany(this.relays, [{ kinds: [1], limit: 50 }], {
             onevent: (event) => this.renderMessage(event),
-            oneose: () => console.log('BrickChat: Feed Initialized')
+            oneose: () => console.log('BrickChat: Feed Synced')
         });
     }
 
     renderMessage(event) {
-        if (document.getElementById(`msg-${event.id}`)) return; // Avoid duplicates
+        if (document.getElementById(`msg-${event.id}`)) return;
 
         const isMe = this.pubkey && event.pubkey === this.pubkey;
         const msgDiv = document.createElement('div');
         msgDiv.id = `msg-${event.id}`;
-        msgDiv.className = `message-brick ${isMe ? 'message-sent' : 'message-received'}`;
+        msgDiv.className = `chat ${isMe ? 'chat-end' : 'chat-start'}`;
         
         const timestamp = new Date(event.created_at * 1000).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        
         msgDiv.innerHTML = `
-            <div class="message-meta">${event.pubkey.substring(0, 8)} • ${timestamp}</div>
-            <div class="message-content">${this.escapeHtml(event.content)}</div>
+            <div class="chat-header opacity-50 text-[10px] mb-1">
+                ${event.pubkey.substring(0, 4)}...${event.pubkey.slice(-4)}
+                <time class="text-xs opacity-50">${timestamp}</time>
+            </div>
+            <div class="chat-bubble ${isMe ? 'bg-brick-red text-white' : 'bg-brick-charcoal text-brick-concrete'} border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)]">
+                ${this.escapeHtml(event.content)}
+            </div>
         `;
 
         this.elements.messagesContainer.appendChild(msgDiv);
@@ -256,7 +257,7 @@ class BrickChat {
         try {
             await Promise.any(this.pool.publish(this.relays, signedEvent));
         } catch (e) {
-            Swal.fire({ icon: 'error', title: 'Send Failed', text: 'Could not reach any relay.', confirmButtonColor: '#c0392b' });
+            Swal.fire('Error', 'Gagal mengirim pesan ke relay.', 'error');
         }
     }
 
