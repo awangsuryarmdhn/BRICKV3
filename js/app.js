@@ -6,7 +6,10 @@ const RELAYS = [
     'wss://nos.lol',
     'wss://relay.nostr.band',
     'wss://relay.snort.social',
-    'wss://eden.nostr.land'
+    'wss://eden.nostr.land',
+    'wss://relay.current.fyi',
+    'wss://brb.io',
+    'wss://nostr.mom'
 ];
 
 class BrickChat {
@@ -47,6 +50,7 @@ class BrickChat {
         
         // Wait for NostrTools
         if (window.NostrTools) {
+            console.log('BrickChat: NostrTools Version Check', window.NostrTools);
             this.checkExistingSession();
             
             // Connect as guest if no session
@@ -114,18 +118,13 @@ class BrickChat {
             this.elements.loginModal.close();
             this.onAuthenticated();
             
-            Swal.fire({
-                icon: 'success',
-                title: 'Connected',
-                timer: 1500,
-                showConfirmButton: false
-            });
+            Swal.fire({ icon: 'success', title: 'Connected', timer: 1500, showConfirmButton: false });
         } catch (e) {
             console.error('Login Error:', e);
             Swal.fire({
                 icon: 'error',
                 title: 'Invalid Key Format',
-                text: 'Pastikan kunci nsec atau hex Anda benar dan tidak terpotong.',
+                text: 'Kunci gagal diproses. Pastikan format nsec atau hex benar.',
                 confirmButtonColor: '#c0392b'
             });
         }
@@ -137,8 +136,14 @@ class BrickChat {
         // Handle nsec
         if (key.startsWith('nsec1')) {
             const { decode } = window.NostrTools.nip19;
-            const { data } = decode(key);
-            return window.NostrTools.bytesToHex(data);
+            const decoded = decode(key);
+            
+            // nostr-tools v2.23+ returns hex string in .data, older returns Uint8Array
+            if (typeof decoded.data === 'string') {
+                return decoded.data;
+            } else if (decoded.data instanceof Uint8Array) {
+                return window.NostrTools.bytesToHex(decoded.data);
+            }
         }
         
         // Handle Hex (validate length 64)
@@ -209,9 +214,19 @@ class BrickChat {
     }
 
     subscribeToMessages() {
-        this.pool.subscribeMany(this.relays, [{ kinds: [1], limit: 50 }], {
+        const oneHourAgo = Math.floor(Date.now() / 1000) - 3600;
+        
+        console.log('BrickChat: Subscribing to feed since', new Date(oneHourAgo * 1000).toLocaleString());
+
+        this.pool.subscribeMany(this.relays, [
+            { 
+                kinds: [1], 
+                limit: 50,
+                since: oneHourAgo
+            }
+        ], {
             onevent: (event) => this.renderMessage(event),
-            oneose: () => console.log('BrickChat: Feed Synced')
+            oneose: () => console.log('BrickChat: End of initial stored events')
         });
     }
 
@@ -228,7 +243,7 @@ class BrickChat {
         msgDiv.innerHTML = `
             <div class="chat-header opacity-50 text-[10px] mb-1">
                 ${event.pubkey.substring(0, 4)}...${event.pubkey.slice(-4)}
-                <time class="text-xs opacity-50">${timestamp}</time>
+                <time class="text-xs opacity-50 ml-1">${timestamp}</time>
             </div>
             <div class="chat-bubble ${isMe ? 'bg-brick-red text-white' : 'bg-brick-charcoal text-brick-concrete'} border-2 border-black shadow-[4px_4px_0px_rgba(0,0,0,1)]">
                 ${this.escapeHtml(event.content)}
